@@ -6,22 +6,25 @@ from litestar.connection import ASGIConnection
 from app.db.models.user import UserModel
 from app.db.repositories.user import UserRepository
 from app.services import token_service
+from dataclasses import dataclass
 
-async def retrieve_user_handler(token: Token, connection: ASGIConnection) -> UserModel | None:
-    """Retrieve user from database using token subject (user ID)"""
-    try:
-        user_repo = UserRepository(session=connection.state.db_session)
-        user = await user_repo.get(UUID(token.sub))
-        return user
-    except Exception:
-        return None
+
+@dataclass
+class AuthUser:
+    id: UUID
+
+
+async def retrieve_user_handler(token: Token, connection: ASGIConnection) -> AuthUser | None:
+    return AuthUser(id=UUID(token.sub))
+
 
 # JWT configuration
-jwt_auth = JWTAuth[UserModel](
+jwt_auth = JWTAuth[AuthUser](
     retrieve_user_handler=retrieve_user_handler,
     token_secret=os.getenv("JWT_SECRET", "your-secret-key-change-this-in-production"),
     default_token_expiration=timedelta(minutes=30),  # 30 minute access tokens
-    exclude=["/health", "/schema", "/auth/login"],
+    exclude=["/health", "/schema", "/auth", "POST:/users"],
+    auth_header="Authorization",
 )
 
 async def generate_refresh_token(user_id: UUID, expires_in_hours: int = 1) -> str:
