@@ -5,7 +5,7 @@ from litestar.plugins.sqlalchemy import (
 )
 from dataclasses import dataclass
 from litestar.openapi.config import OpenAPIConfig
-from litestar.openapi.plugins import StoplightRenderPlugin
+from litestar.openapi.plugins import StoplightRenderPlugin, SwaggerRenderPlugin
 from litestar.config.cors import CORSConfig
 from litestar.logging import LoggingConfig
 from litestar.handlers.http_handlers.decorators import get
@@ -48,7 +48,7 @@ def create_app():
             title=settings.app_name,
             description=settings.app_name,
             version=settings.app_version,
-            render_plugins=[StoplightRenderPlugin()],
+            render_plugins=[StoplightRenderPlugin(), SwaggerRenderPlugin()],
         ),
         cors_config=CORSConfig(
             allow_origins=settings.cors_allow_origins_list,
