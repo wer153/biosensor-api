@@ -41,7 +41,7 @@ def create_app():
         root={"level": "INFO", "handlers": ["queue_listener"]},
         log_exceptions="always",
     )
-    
+
     return Litestar(
         route_handlers=[health_check, UserController, AuthController, FileController],
         openapi_config=OpenAPIConfig(

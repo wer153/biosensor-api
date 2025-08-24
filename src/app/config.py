@@ -106,17 +106,14 @@ class AppConfig(BaseSettings):
 
     # CORS settings
     cors_allow_origins: str = Field(
-        default="*", 
-        description="Comma-separated list of allowed CORS origins"
+        default="*", description="Comma-separated list of allowed CORS origins"
     )
     cors_allow_credentials: bool = Field(default=True)
     cors_allow_methods: str = Field(
-        default="*", 
-        description="Comma-separated list of allowed CORS methods"
+        default="*", description="Comma-separated list of allowed CORS methods"
     )
     cors_allow_headers: str = Field(
-        default="*", 
-        description="Comma-separated list of allowed CORS headers"
+        default="*", description="Comma-separated list of allowed CORS headers"
     )
 
     @property
@@ -124,21 +121,27 @@ class AppConfig(BaseSettings):
         """Convert comma-separated origins string to list."""
         if self.cors_allow_origins == "*":
             return ["*"]
-        return [item.strip() for item in self.cors_allow_origins.split(",") if item.strip()]
+        return [
+            item.strip() for item in self.cors_allow_origins.split(",") if item.strip()
+        ]
 
     @property
     def cors_allow_methods_list(self) -> list[str]:
         """Convert comma-separated methods string to list."""
         if self.cors_allow_methods == "*":
             return ["*"]
-        return [item.strip() for item in self.cors_allow_methods.split(",") if item.strip()]
+        return [
+            item.strip() for item in self.cors_allow_methods.split(",") if item.strip()
+        ]
 
     @property
     def cors_allow_headers_list(self) -> list[str]:
         """Convert comma-separated headers string to list."""
         if self.cors_allow_headers == "*":
             return ["*"]
-        return [item.strip() for item in self.cors_allow_headers.split(",") if item.strip()]
+        return [
+            item.strip() for item in self.cors_allow_headers.split(",") if item.strip()
+        ]
 
     # Component configurations
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)

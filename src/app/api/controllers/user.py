@@ -5,7 +5,7 @@ from litestar.security.jwt import Token
 from app.db.models.user import UserModel
 from app.api.schemas.user import User, UserCreate, UserUpdate
 from app.db.repositories.user import UserRepository, provide_users_repo
-from app.auth.jwt import AuthUser, jwt_auth
+from app.auth.jwt import AuthUser
 from typing import Any
 
 
