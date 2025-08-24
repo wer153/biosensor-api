@@ -12,12 +12,10 @@ class UserModel(base.UUIDAuditBase):
     name: Mapped[str] = mapped_column(String(50))
     email: Mapped[str] = mapped_column(String(255), unique=True)
     password: Mapped[str] = mapped_column(String(255))
-    
+
     files: Mapped[List["FileModel"]] = relationship("FileModel", back_populates="user")
 
-    __table_args__ = (
-        Index('idx_users_email', 'email'),
-    )
+    __table_args__ = (Index("idx_users_email", "email"),)
 
     def set_password(self, password: str) -> None:
         # TODO: hash password

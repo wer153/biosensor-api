@@ -1,4 +1,3 @@
-import os
 import json
 import secrets
 from datetime import datetime, timedelta
@@ -6,57 +5,56 @@ from uuid import UUID
 from redis.asyncio import Redis
 from typing import Dict, Any, Optional
 
+from app.config import settings
+
 
 class RedisTokenService:
     """Redis-based refresh token management service"""
-    
+
     def __init__(self):
         self.redis: Optional[Redis] = None
         self.prefix = "refresh_token:"
         self.user_prefix = "user_tokens:"
-    
+
     async def _connect(self):
         """Initialize Redis connection"""
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-        self.redis = Redis.from_url(redis_url, decode_responses=True)
+        self.redis = Redis.from_url(str(settings.redis.url), decode_responses=True)
 
     async def create_refresh_token(
-        self, 
-        user_id: UUID, 
-        expires_in_hours: int = 1
+        self, user_id: UUID, expires_in_hours: int = 1
     ) -> str:
         """Create a new refresh token for user"""
         if not self.redis:
             await self._connect()
-            
+
         token = secrets.token_urlsafe(32)
         expires_at = datetime.utcnow() + timedelta(hours=expires_in_hours)
-        
+
         token_data = {
             "user_id": str(user_id),
             "created_at": datetime.utcnow().isoformat(),
-            "expires_at": expires_at.isoformat()
+            "expires_at": expires_at.isoformat(),
         }
-        
+
         await self.redis.setex(
             f"{self.prefix}{token}",
             int(timedelta(hours=expires_in_hours).total_seconds()),
-            json.dumps(token_data)
+            json.dumps(token_data),
         )
-        
+
         return token
-    
+
     async def _get_token_data(self, token: str) -> Dict[str, Any] | None:
         """Get token data if valid"""
         if not self.redis:
             await self._connect()
-            
+
         token_json = await self.redis.get(f"{self.prefix}{token}")
         if not token_json:
             return None
-            
+
         return json.loads(token_json)
-    
+
     async def validate_refresh_token(self, token: str) -> UUID | None:
         """Validate refresh token and return user ID if valid"""
         token_data = await self._get_token_data(token)

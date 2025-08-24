@@ -1,4 +1,3 @@
-import os
 from litestar import Litestar
 from litestar.plugins.sqlalchemy import (
     SQLAlchemyAsyncConfig,
@@ -15,6 +14,7 @@ from app.api.controllers.user import UserController
 from app.api.controllers.auth import AuthController
 from app.api.controllers.file import FileController
 from app.auth.jwt import jwt_auth
+from app.config import settings
 
 
 @dataclass
@@ -27,12 +27,8 @@ def health_check() -> HealthCheck:
     return HealthCheck(status="ok")
 
 
-DB_URL = os.getenv("DATABASE_URL")
-if not DB_URL:
-    raise ValueError("DATABASE_URL is not set")
-
 _CONFIG = SQLAlchemyAsyncConfig(
-    connection_string=DB_URL,
+    connection_string=str(settings.database.url),
     create_all=True,
     metadata=base.orm_registry.metadata,
 )
@@ -43,16 +39,16 @@ def create_app():
     return Litestar(
         route_handlers=[health_check, UserController, AuthController, FileController],
         openapi_config=OpenAPIConfig(
-            title="Biosensor API",
-            description="Biosensor API",
-            version="0.0.1",
+            title=settings.app_name,
+            description=settings.app_name,
+            version=settings.app_version,
             render_plugins=[StoplightRenderPlugin()],
         ),
         cors_config=CORSConfig(
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_origins=settings.cors_allow_origins,
+            allow_credentials=settings.cors_allow_credentials,
+            allow_methods=settings.cors_allow_methods,
+            allow_headers=settings.cors_allow_headers,
         ),
         plugins=[_PLUGIN],
         on_app_init=[jwt_auth.on_app_init],
