@@ -1,12 +1,12 @@
 from litestar import Controller, Request, get, post, patch, delete
 from litestar.di import Provide
 from litestar.exceptions import NotFoundException
+from litestar.security.jwt import Token
 from app.db.models.user import UserModel
 from app.api.schemas.user import User, UserCreate, UserUpdate
 from app.db.repositories.user import UserRepository, provide_users_repo
-from app.auth.jwt import AuthUser
+from app.auth.jwt import AuthUser, jwt_auth
 from typing import Any
-from litestar.security.jwt import Token
 
 
 class UserController(Controller):
@@ -14,7 +14,7 @@ class UserController(Controller):
     dependencies = {"users_repo": Provide(provide_users_repo)}
     tags = ["users"]
 
-    @post("/")
+    @post("/", exclude_from_auth=True)
     async def create_user(
         self,
         users_repo: UserRepository,

@@ -25,7 +25,7 @@ jwt_auth = JWTAuth[AuthUser](
     default_token_expiration=timedelta(
         minutes=settings.jwt.access_token_expire_minutes
     ),
-    exclude=["/health", "/schema", "/auth", "POST:/users"],
+    exclude=["/health", "/schema", "/auth.*"],
     auth_header="Authorization",
 )
 

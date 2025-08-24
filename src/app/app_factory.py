@@ -45,10 +45,10 @@ def create_app():
             render_plugins=[StoplightRenderPlugin()],
         ),
         cors_config=CORSConfig(
-            allow_origins=settings.cors_allow_origins,
+            allow_origins=settings.cors_allow_origins_list,
             allow_credentials=settings.cors_allow_credentials,
-            allow_methods=settings.cors_allow_methods,
-            allow_headers=settings.cors_allow_headers,
+            allow_methods=settings.cors_allow_methods_list,
+            allow_headers=settings.cors_allow_headers_list,
         ),
         plugins=[_PLUGIN],
         on_app_init=[jwt_auth.on_app_init],
