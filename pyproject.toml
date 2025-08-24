@@ -10,6 +10,8 @@ dependencies = [
     "asyncpg>=0.29.0",
     "redis>=5.0.0",
     "email-validator>=2.0.0",
+    "boto3>=1.35.0",
+    "botocore>=1.35.0",
 ]
 
 
