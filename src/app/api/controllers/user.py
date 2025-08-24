@@ -8,6 +8,7 @@ from app.auth.jwt import AuthUser
 from typing import Any
 from litestar.security.jwt import Token
 
+
 class UserController(Controller):
     path = "/users"
     dependencies = {"users_repo": Provide(provide_users_repo)}
@@ -25,7 +26,9 @@ class UserController(Controller):
         return User(name=data.name, email=data.email)
 
     @get("/me")
-    async def get_user(self, users_repo: UserRepository, request: Request[AuthUser, Token, Any]) -> User:
+    async def get_user(
+        self, users_repo: UserRepository, request: Request[AuthUser, Token, Any]
+    ) -> User:
         user = await users_repo.get_one_or_none(UserModel.id == str(request.user.id))
         if not user:
             raise NotFoundException(status_code=404, detail="User not found")
@@ -33,15 +36,18 @@ class UserController(Controller):
 
     @patch("/me")
     async def update_user(
-        self, users_repo: UserRepository, request: Request[AuthUser, Token, Any], data: UserUpdate
+        self,
+        users_repo: UserRepository,
+        request: Request[AuthUser, Token, Any],
+        data: UserUpdate,
     ) -> User:
         user = await users_repo.get_one_or_none(UserModel.id == request.user.id)
         if not user:
-            raise NotFoundException(status_code=404, detail="User not found")         
+            raise NotFoundException(status_code=404, detail="User not found")
         if data.name:
             user.name = data.name
         if data.password:
-            user.set_password(data.password)            
+            user.set_password(data.password)
         await users_repo.update(
             user,
             id_attribute=UserModel.email,
@@ -50,5 +56,9 @@ class UserController(Controller):
         return User(name=user.name, email=user.email)
 
     @delete("/me")
-    async def delete_user(self, users_repo: UserRepository, request: Request[AuthUser, Token, Any]) -> None:
-        await users_repo.delete(request.user.id, id_attribute=UserModel.id, auto_commit=True)
+    async def delete_user(
+        self, users_repo: UserRepository, request: Request[AuthUser, Token, Any]
+    ) -> None:
+        await users_repo.delete(
+            request.user.id, id_attribute=UserModel.id, auto_commit=True
+        )

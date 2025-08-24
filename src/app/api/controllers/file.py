@@ -5,11 +5,11 @@ from litestar.datastructures import UploadFile
 from litestar.security.jwt import Token
 from app.db.models.file import FileModel
 from app.api.schemas.file import (
-    FileInfo, 
-    FileUploadResponse, 
-    FileListResponse, 
+    FileInfo,
+    FileUploadResponse,
+    FileListResponse,
     FileDownloadResponse,
-    FileDeleteResponse
+    FileDeleteResponse,
 )
 from app.db.repositories.file import FileRepository, provide_files_repo
 from app.services.s3_service import s3_service
@@ -39,15 +39,15 @@ class FileController(Controller):
         for file in files:
             if not file.filename:
                 continue
-                
+
             file_content = await file.read()
             file_size = len(file_content)
-            
+
             s3_key, s3_bucket = await s3_service.upload_file(
                 file_content=file_content,
                 user_id=user_id,
                 original_filename=file.filename,
-                content_type=file.content_type or "application/octet-stream"
+                content_type=file.content_type or "application/octet-stream",
             )
 
             file_model = FileModel(
@@ -58,7 +58,7 @@ class FileController(Controller):
                 s3_key=s3_key,
                 s3_bucket=s3_bucket,
                 uploaded_by=user_id,
-                upload_date=datetime.now(timezone.utc)
+                upload_date=datetime.now(timezone.utc),
             )
 
             await files_repo.add(file_model, auto_commit=True)
@@ -70,7 +70,7 @@ class FileController(Controller):
                     original_filename=file_model.original_filename,
                     content_type=file_model.content_type,
                     file_size=file_model.file_size,
-                    message="File uploaded successfully"
+                    message="File uploaded successfully",
                 )
             )
 
@@ -84,7 +84,7 @@ class FileController(Controller):
     ) -> FileListResponse:
         user_id = request.user.id
         files = await files_repo.get_user_files(files_repo.session, user_id)
-        
+
         file_infos = [
             FileInfo(
                 id=str(file.id),
@@ -93,7 +93,7 @@ class FileController(Controller):
                 content_type=file.content_type,
                 file_size=file.file_size,
                 upload_date=file.upload_date,
-                uploaded_by=str(file.uploaded_by)
+                uploaded_by=str(file.uploaded_by),
             )
             for file in files
         ]
@@ -108,17 +108,17 @@ class FileController(Controller):
         file_id: str,
     ) -> FileDownloadResponse:
         user_id = request.user.id
-        file = await files_repo.get_user_file_by_id(files_repo.session, file_id, user_id)
-        
+        file = await files_repo.get_user_file_by_id(
+            files_repo.session, file_id, user_id
+        )
+
         if not file:
             raise NotFoundException("File not found")
 
         download_url = s3_service.generate_presigned_url(file.s3_key, expires_in=60)
 
         return FileDownloadResponse(
-            download_url=download_url,
-            expires_in=60,
-            filename=file.original_filename
+            download_url=download_url, expires_in=60, filename=file.original_filename
         )
 
     @delete("/{file_id:str}")
@@ -129,12 +129,13 @@ class FileController(Controller):
         file_id: str,
     ) -> FileDeleteResponse:
         user_id = request.user.id
-        success = await files_repo.soft_delete_file(files_repo.session, file_id, user_id)
-        
+        success = await files_repo.soft_delete_file(
+            files_repo.session, file_id, user_id
+        )
+
         if not success:
             raise NotFoundException("File not found")
 
         return FileDeleteResponse(
-            message="File removed from list successfully",
-            deleted_file_id=file_id
+            message="File removed from list successfully", deleted_file_id=file_id
         )
