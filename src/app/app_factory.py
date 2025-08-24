@@ -13,6 +13,7 @@ from typing import Literal
 from litestar.plugins.sqlalchemy import base
 from app.api.controllers.user import UserController
 from app.api.controllers.auth import AuthController
+from app.api.controllers.file import FileController
 from app.auth.jwt import jwt_auth
 
 
@@ -40,7 +41,7 @@ _PLUGIN = SQLAlchemyPlugin(config=_CONFIG)
 
 def create_app():
     return Litestar(
-        route_handlers=[health_check, UserController, AuthController],
+        route_handlers=[health_check, UserController, AuthController, FileController],
         openapi_config=OpenAPIConfig(
             title="Biosensor API",
             description="Biosensor API",

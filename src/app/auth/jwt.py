@@ -3,8 +3,6 @@ from datetime import timedelta
 from uuid import UUID
 from litestar.security.jwt import JWTAuth, Token
 from litestar.connection import ASGIConnection
-from app.db.models.user import UserModel
-from app.db.repositories.user import UserRepository
 from app.services import token_service
 from dataclasses import dataclass
 

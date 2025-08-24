@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from uuid import UUID
 from app.db.models.user import UserModel
 from litestar import Controller, Response, post
 from litestar.di import Provide
