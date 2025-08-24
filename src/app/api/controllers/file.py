@@ -121,7 +121,7 @@ class FileController(Controller):
             download_url=download_url, expires_in=60, filename=file.original_filename
         )
 
-    @delete("/{file_id:str}")
+    @delete("/{file_id:str}", status_code=200)
     async def delete_file(
         self,
         request: Request[AuthUser, Token, Any],
