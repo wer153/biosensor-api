@@ -15,7 +15,7 @@ from app.db.repositories.file import FileRepository, provide_files_repo
 from app.services.s3_service import s3_service
 from app.auth.jwt import AuthUser
 from typing import Annotated, Any
-from datetime import datetime, timezone
+from datetime import datetime
 from litestar.enums import RequestEncodingType
 from litestar.params import Body
 from io import BytesIO
@@ -57,7 +57,7 @@ class FileController(Controller):
             s3_key=s3_key,
             s3_bucket=s3_bucket,
             uploaded_by=user_id,
-            upload_date=datetime.now(timezone.utc),
+            upload_date=datetime.utcnow(),
         )
 
         await files_repo.add(file_model, auto_commit=True)
