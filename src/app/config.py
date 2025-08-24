@@ -105,12 +105,40 @@ class AppConfig(BaseSettings):
     api_port: int = Field(default=8000)
 
     # CORS settings
-    cors_allow_origins: list[str] = Field(
-        default=["*"], description="List of allowed CORS origins"
+    cors_allow_origins: str = Field(
+        default="*", 
+        description="Comma-separated list of allowed CORS origins"
     )
     cors_allow_credentials: bool = Field(default=True)
-    cors_allow_methods: list[str] = Field(default=["*"])
-    cors_allow_headers: list[str] = Field(default=["*"])
+    cors_allow_methods: str = Field(
+        default="*", 
+        description="Comma-separated list of allowed CORS methods"
+    )
+    cors_allow_headers: str = Field(
+        default="*", 
+        description="Comma-separated list of allowed CORS headers"
+    )
+
+    @property
+    def cors_allow_origins_list(self) -> list[str]:
+        """Convert comma-separated origins string to list."""
+        if self.cors_allow_origins == "*":
+            return ["*"]
+        return [item.strip() for item in self.cors_allow_origins.split(",") if item.strip()]
+
+    @property
+    def cors_allow_methods_list(self) -> list[str]:
+        """Convert comma-separated methods string to list."""
+        if self.cors_allow_methods == "*":
+            return ["*"]
+        return [item.strip() for item in self.cors_allow_methods.split(",") if item.strip()]
+
+    @property
+    def cors_allow_headers_list(self) -> list[str]:
+        """Convert comma-separated headers string to list."""
+        if self.cors_allow_headers == "*":
+            return ["*"]
+        return [item.strip() for item in self.cors_allow_headers.split(",") if item.strip()]
 
     # Component configurations
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
