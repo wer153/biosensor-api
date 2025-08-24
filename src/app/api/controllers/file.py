@@ -14,8 +14,10 @@ from app.api.schemas.file import (
 from app.db.repositories.file import FileRepository, provide_files_repo
 from app.services.s3_service import s3_service
 from app.auth.jwt import AuthUser
-from typing import Any, List
+from typing import Annotated, Any, List
 from datetime import datetime, timezone
+from litestar.enums import RequestEncodingType
+from litestar.params import Body
 
 
 class FileController(Controller):
@@ -28,18 +30,17 @@ class FileController(Controller):
         self,
         request: Request[AuthUser, Token, Any],
         files_repo: FileRepository,
-        files: List[UploadFile],
+        data: Annotated[
+            dict[str, UploadFile], Body(media_type=RequestEncodingType.MULTI_PART)
+        ],
     ) -> List[FileUploadResponse]:
-        if not files:
+        if not data:
             raise InternalServerException("No files provided")
 
         user_id = request.user.id
         uploaded_files = []
 
-        for file in files:
-            if not file.filename:
-                continue
-
+        for _name, file in data.items():
             file_content = await file.read()
             file_size = len(file_content)
 
