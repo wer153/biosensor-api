@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from litestar.openapi.config import OpenAPIConfig
 from litestar.openapi.plugins import StoplightRenderPlugin
 from litestar.config.cors import CORSConfig
+from litestar.logging import LoggingConfig
 from litestar.handlers.http_handlers.decorators import get
 from typing import Literal
 from litestar.plugins.sqlalchemy import base
@@ -36,6 +37,11 @@ _PLUGIN = SQLAlchemyPlugin(config=_CONFIG)
 
 
 def create_app():
+    logging_config = LoggingConfig(
+        root={"level": "INFO", "handlers": ["queue_listener"]},
+        log_exceptions="always",
+    )
+    
     return Litestar(
         route_handlers=[health_check, UserController, AuthController, FileController],
         openapi_config=OpenAPIConfig(
@@ -52,4 +58,5 @@ def create_app():
         ),
         plugins=[_PLUGIN],
         on_app_init=[jwt_auth.on_app_init],
+        logging_config=logging_config,
     )
