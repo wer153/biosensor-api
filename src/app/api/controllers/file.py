@@ -14,10 +14,11 @@ from app.api.schemas.file import (
 from app.db.repositories.file import FileRepository, provide_files_repo
 from app.services.s3_service import s3_service
 from app.auth.jwt import AuthUser
-from typing import Annotated, Any, List
+from typing import Annotated, Any
 from datetime import datetime, timezone
 from litestar.enums import RequestEncodingType
 from litestar.params import Body
+from io import BytesIO
 
 
 class FileController(Controller):
@@ -30,52 +31,45 @@ class FileController(Controller):
         self,
         request: Request[AuthUser, Token, Any],
         files_repo: FileRepository,
-        data: Annotated[
-            dict[str, UploadFile], Body(media_type=RequestEncodingType.MULTI_PART)
-        ],
-    ) -> List[FileUploadResponse]:
+        data: Annotated[UploadFile, Body(media_type=RequestEncodingType.MULTI_PART)],
+    ) -> FileUploadResponse:
         if not data:
-            raise InternalServerException("No files provided")
+            raise InternalServerException("No file provided")
 
         user_id = request.user.id
-        uploaded_files = []
+        
+        file_content = await data.read()
+        file_size = len(file_content)
+        file_obj = BytesIO(file_content)
 
-        for _name, file in data.items():
-            file_content = await file.read()
-            file_size = len(file_content)
+        s3_key, s3_bucket = await s3_service.upload_file(
+            file_content=file_obj,
+            user_id=user_id,
+            original_filename=data.filename,
+            content_type=data.content_type or "application/octet-stream",
+        )
 
-            s3_key, s3_bucket = await s3_service.upload_file(
-                file_content=file_content,
-                user_id=user_id,
-                original_filename=file.filename,
-                content_type=file.content_type or "application/octet-stream",
-            )
+        file_model = FileModel(
+            filename=data.filename,
+            original_filename=data.filename,
+            content_type=data.content_type or "application/octet-stream",
+            file_size=file_size,
+            s3_key=s3_key,
+            s3_bucket=s3_bucket,
+            uploaded_by=user_id,
+            upload_date=datetime.now(timezone.utc),
+        )
 
-            file_model = FileModel(
-                filename=file.filename,
-                original_filename=file.filename,
-                content_type=file.content_type or "application/octet-stream",
-                file_size=file_size,
-                s3_key=s3_key,
-                s3_bucket=s3_bucket,
-                uploaded_by=user_id,
-                upload_date=datetime.now(timezone.utc),
-            )
+        await files_repo.add(file_model, auto_commit=True)
 
-            await files_repo.add(file_model, auto_commit=True)
-
-            uploaded_files.append(
-                FileUploadResponse(
-                    id=str(file_model.id),
-                    filename=file_model.filename,
-                    original_filename=file_model.original_filename,
-                    content_type=file_model.content_type,
-                    file_size=file_model.file_size,
-                    message="File uploaded successfully",
-                )
-            )
-
-        return uploaded_files
+        return FileUploadResponse(
+            id=str(file_model.id),
+            filename=file_model.filename,
+            original_filename=file_model.original_filename,
+            content_type=file_model.content_type,
+            file_size=file_model.file_size,
+            message="File uploaded successfully",
+        )
 
     @get("/")
     async def get_files(
