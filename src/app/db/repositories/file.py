@@ -1,11 +1,11 @@
 from typing import List, Optional
-from litestar.repository import SQLAlchemyAsyncRepository
+from litestar.plugins.sqlalchemy import repository
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from app.db.models.file import FileModel
 
 
-class FileRepository(SQLAlchemyAsyncRepository[FileModel]):
+class FileRepository(repository.SQLAlchemyAsyncRepository[FileModel]):
     model_type = FileModel
 
     async def get_user_files(
