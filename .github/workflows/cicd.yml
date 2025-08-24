@@ -1,0 +1,167 @@
+name: Deploy to ECR and ECS
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy"
+        required: true
+        default: "main"
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: biosensor-api
+  ECS_CLUSTER: biosensor-cluster
+  ECS_SERVICE: biosensor-api-service
+
+jobs:
+  build-and-push:
+    name: Build and Push to ECR
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    outputs:
+      image: ${{ steps.build-image.outputs.image }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build Docker image
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+        # Push images to ECR
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+        # Output the image URI for use in deployment
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Run image vulnerability scan
+      run: |
+        aws ecr start-image-scan \
+          --repository-name $ECR_REPOSITORY \
+          --image-id imageTag=${{ github.sha }} \
+          --region $AWS_REGION || echo "Scan already in progress or completed"
+        
+        # Wait for scan to complete (optional)
+        sleep 15
+        
+        # Get scan results
+        aws ecr describe-image-scan-findings \
+          --repository-name $ECR_REPOSITORY \
+          --image-id imageTag=${{ github.sha }} \
+          --region $AWS_REGION || echo "Scan results not available yet"
+
+  deploy-to-ecs:
+    name: Deploy to ECS
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Deploy to ECS
+      run: |
+        echo "Starting ECS deployment..."
+        echo "Cluster: $ECS_CLUSTER"
+        echo "Service: $ECS_SERVICE"
+        echo "Image: ${{ needs.build-and-push.outputs.image }}"
+        
+        # Force new deployment of ECS service
+        # This will pull the latest image with the :latest tag
+        aws ecs update-service \
+          --cluster $ECS_CLUSTER \
+          --service $ECS_SERVICE \
+          --force-new-deployment \
+          --region $AWS_REGION
+        
+        echo "ECS service update initiated. Waiting for deployment to complete..."
+        
+        # Wait for the deployment to complete (up to 10 minutes)
+        aws ecs wait services-stable \
+          --cluster $ECS_CLUSTER \
+          --services $ECS_SERVICE \
+          --region $AWS_REGION \
+          --cli-read-timeout 600
+        
+        echo "Deployment completed successfully!"
+
+    - name: Verify deployment
+      run: |
+        # Get service status
+        SERVICE_STATUS=$(aws ecs describe-services \
+          --cluster $ECS_CLUSTER \
+          --services $ECS_SERVICE \
+          --query 'services[0].status' \
+          --output text \
+          --region $AWS_REGION)
+        
+        # Get running task count
+        RUNNING_COUNT=$(aws ecs describe-services \
+          --cluster $ECS_CLUSTER \
+          --services $ECS_SERVICE \
+          --query 'services[0].runningCount' \
+          --output text \
+          --region $AWS_REGION)
+        
+        # Get desired task count
+        DESIRED_COUNT=$(aws ecs describe-services \
+          --cluster $ECS_CLUSTER \
+          --services $ECS_SERVICE \
+          --query 'services[0].desiredCount' \
+          --output text \
+          --region $AWS_REGION)
+        
+        echo "Service Status: $SERVICE_STATUS"
+        echo "Running Tasks: $RUNNING_COUNT"
+        echo "Desired Tasks: $DESIRED_COUNT"
+        
+        # Check if deployment was successful
+        if [ "$SERVICE_STATUS" = "ACTIVE" ] && [ "$RUNNING_COUNT" = "$DESIRED_COUNT" ]; then
+          echo "✅ Deployment verification successful!"
+        else
+          echo "❌ Deployment verification failed!"
+          exit 1
+        fi
+        
+        # Get the latest deployment details
+        echo "Latest deployment details:"
+        aws ecs describe-services \
+          --cluster $ECS_CLUSTER \
+          --services $ECS_SERVICE \
+          --query 'services[0].deployments[0]' \
+          --region $AWS_REGION
