@@ -1,3 +1,4 @@
+from math import e
 from litestar import Litestar
 from litestar.plugins.sqlalchemy import (
     SQLAlchemyAsyncConfig,
@@ -23,7 +24,7 @@ class HealthCheck:
     status: Literal["ok"]
 
 
-@get("/health", tags=["health"])
+@get("/health", tags=["health"], exclude_from_auth=True)
 def health_check() -> HealthCheck:
     return HealthCheck(status="ok")
 

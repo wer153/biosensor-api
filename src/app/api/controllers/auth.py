@@ -18,7 +18,7 @@ class AuthController(Controller):
     dependencies = {"users_repo": Provide(provide_users_repo)}
     tags = ["auth"]
 
-    @post("/login")
+    @post("/login", exclude_from_auth=True)
     async def login(
         self, users_repo: UserRepository, data: LoginRequest
     ) -> Response[TokenResponse]:
