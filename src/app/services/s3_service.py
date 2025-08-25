@@ -1,4 +1,3 @@
-import uuid
 from typing import BinaryIO
 from boto3 import client
 from botocore.exceptions import ClientError, NoCredentialsError
@@ -29,22 +28,22 @@ class S3Service:
         except NoCredentialsError:
             raise InternalServerException("AWS credentials not configured")
 
-    def _generate_s3_key(self, user_id: str, original_filename: str) -> str:
-        file_uuid = str(uuid.uuid4())
+    def _generate_s3_key(self, file_id: str, user_id: str, original_filename: str) -> str:
         file_extension = ""
         if "." in original_filename:
             file_extension = original_filename.rsplit(".", 1)[1]
-            return f"users/{user_id}/{file_uuid}.{file_extension}"
-        return f"users/{user_id}/{file_uuid}"
+            return f"users/{user_id}/{file_id}.{file_extension}"
+        return f"users/{user_id}/{file_id}"
 
     async def upload_file(
         self,
         file_content: BinaryIO,
+        file_id: str,
         user_id: str,
         original_filename: str,
         content_type: str,
     ) -> tuple[str, str]:
-        s3_key = self._generate_s3_key(user_id, original_filename)
+        s3_key = self._generate_s3_key(file_id, user_id, original_filename)
 
         try:
             self.s3_client.upload_fileobj(
@@ -80,13 +79,14 @@ class S3Service:
 
     def generate_presigned_upload_url(
         self,
+        file_id: str,
         user_id: str,
         original_filename: str,
         content_type: str,
         expires_in: int = 3600,
     ) -> tuple[str, str]:
         """Generate presigned URL for direct S3 upload"""
-        s3_key = self._generate_s3_key(user_id, original_filename)
+        s3_key = self._generate_s3_key(file_id, user_id, original_filename)
 
         try:
             url = self.s3_client.generate_presigned_url(

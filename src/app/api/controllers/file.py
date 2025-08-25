@@ -1,3 +1,4 @@
+import uuid
 from litestar import Controller, Request, post, get, delete
 from litestar.di import Provide
 from litestar.exceptions import NotFoundException, InternalServerException, PermissionDeniedException
@@ -120,6 +121,7 @@ class FileController(Controller):
 
         # Pre-create file record with PENDING status (file_size will be updated after upload)
         file_model = FileModel(
+            id=uuid.uuid4(),
             filename=data.filename,
             original_filename=data.filename,
             content_type=data.content_type,
@@ -130,9 +132,12 @@ class FileController(Controller):
             upload_date=datetime.utcnow(),
             upload_status=UploadStatus.PENDING,
         )
-
-        # Generate S3 key and presigned URL
+        
+        # Save to get the file ID first
+        
+        # Generate S3 key and presigned URL using the file ID
         upload_url, s3_key = s3_service.generate_presigned_upload_url(
+            file_id=str(file_model.id),
             user_id=user_id,
             original_filename=data.filename,
             content_type=data.content_type,
