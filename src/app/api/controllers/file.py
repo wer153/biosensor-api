@@ -163,13 +163,13 @@ class FileController(Controller):
     async def s3_upload_webhook(
         self,
         files_repo: FileRepository,
-        events: list[S3WebhookEvent],
+        data: list[S3WebhookEvent],
     ) -> dict[str, str]:
         """Webhook endpoint for S3 upload completion notifications"""
-        for event in events:
+        for event in data:
             if event.eventName.startswith("ObjectCreated"):
-                s3_key = event.s3["object"]["key"]
-                file_size = event.s3["object"]["size"]
+                s3_key = event.s3.object.key
+                file_size = event.s3.object.size
                 # Find and update the file record
                 file_record = await files_repo.get_by_s3_key(s3_key)
                 if file_record:

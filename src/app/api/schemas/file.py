@@ -57,9 +57,16 @@ class UploadConfirmRequest(BaseModel):
     file_size: int
 
 
+class S3ObjectInfo(BaseModel):
+    key: str
+    size: int
+
+class S3Info(BaseModel):
+    object: S3ObjectInfo
+
 class S3WebhookEvent(BaseModel):
     """S3 Event Notification webhook payload"""
-
+    
     eventSource: str
     eventName: str
-    s3: dict
+    s3: S3Info
