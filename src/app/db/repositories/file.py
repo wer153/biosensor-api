@@ -31,6 +31,11 @@ class FileRepository(repository.SQLAlchemyAsyncRepository[FileModel]):
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_s3_key(self, s3_key: str) -> Optional[FileModel]:
+        stmt = select(FileModel).where(FileModel.s3_key == s3_key)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def soft_delete_file(
         self, session: AsyncSession, file_id: str, user_id: str
     ) -> bool:
