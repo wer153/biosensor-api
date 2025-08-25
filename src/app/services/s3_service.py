@@ -2,6 +2,7 @@ import uuid
 from typing import BinaryIO
 from boto3 import client
 from botocore.exceptions import ClientError, NoCredentialsError
+from botocore.config import Config
 from litestar.exceptions import InternalServerException
 
 from app.config import settings
@@ -19,6 +20,11 @@ class S3Service:
                 region_name=self.aws_region,
                 aws_access_key_id=settings.aws.access_key_id,
                 aws_secret_access_key=settings.aws.secret_access_key,
+                config=Config(
+                    signature_version="s3v4",
+                    region_name=self.aws_region,
+                    s3={"addressing_style": "virtual"}
+                )
             )
         except NoCredentialsError:
             raise InternalServerException("AWS credentials not configured")
