@@ -3,6 +3,8 @@ from sqlalchemy import String, Index
 from litestar.plugins.sqlalchemy import base
 from typing import TYPE_CHECKING, List
 
+from app.services.password_service import password_service
+
 if TYPE_CHECKING:
     from .file import FileModel
 
@@ -18,8 +20,7 @@ class UserModel(base.UUIDAuditBase):
     __table_args__ = (Index("idx_users_email", "email"),)
 
     def set_password(self, password: str) -> None:
-        # TODO: hash password
-        self.password = password
+        self.password = password_service.hash_password(password)
 
     def verify_password(self, password: str) -> bool:
-        return password == self.password
+        return password_service.verify_password(password, self.password)

@@ -22,13 +22,15 @@ class S3Service:
                 config=Config(
                     signature_version="s3v4",
                     region_name=self.aws_region,
-                    s3={"addressing_style": "virtual"}
-                )
+                    s3={"addressing_style": "virtual"},
+                ),
             )
         except NoCredentialsError:
             raise InternalServerException("AWS credentials not configured")
 
-    def _generate_s3_key(self, file_id: str, user_id: str, original_filename: str) -> str:
+    def _generate_s3_key(
+        self, file_id: str, user_id: str, original_filename: str
+    ) -> str:
         file_extension = ""
         if "." in original_filename:
             file_extension = original_filename.rsplit(".", 1)[1]

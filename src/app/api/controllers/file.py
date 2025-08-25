@@ -1,7 +1,11 @@
 import uuid
 from litestar import Controller, Request, post, get, delete
 from litestar.di import Provide
-from litestar.exceptions import NotFoundException, InternalServerException, PermissionDeniedException
+from litestar.exceptions import (
+    NotFoundException,
+    InternalServerException,
+    PermissionDeniedException,
+)
 from litestar.security.jwt import Token
 from app.db.models.file import FileModel, UploadStatus
 from app.api.schemas.file import (
@@ -26,7 +30,6 @@ class FileController(Controller):
     path = "/files"
     dependencies = {"files_repo": Provide(provide_files_repo)}
     tags = ["files"]
-
 
     @get("/")
     async def get_files(
@@ -74,11 +77,17 @@ class FileController(Controller):
         except InternalServerException as e:
             error_msg = str(e)
             if "not found" in error_msg.lower() or "404" in error_msg:
-                raise NotFoundException(f"File not available for download: {file.original_filename}")
+                raise NotFoundException(
+                    f"File not available for download: {file.original_filename}"
+                )
             elif "access denied" in error_msg.lower() or "403" in error_msg:
-                raise PermissionDeniedException(f"Access denied to file: {file.original_filename}")
+                raise PermissionDeniedException(
+                    f"Access denied to file: {file.original_filename}"
+                )
             else:
-                raise InternalServerException(f"Download currently unavailable: {file.original_filename}")
+                raise InternalServerException(
+                    f"Download currently unavailable: {file.original_filename}"
+                )
 
         expires_at = datetime.utcnow() + timedelta(
             seconds=_PRESIGNED_URL_EXPIRY_SECONDS
@@ -132,9 +141,9 @@ class FileController(Controller):
             upload_date=datetime.utcnow(),
             upload_status=UploadStatus.PENDING,
         )
-        
+
         # Save to get the file ID first
-        
+
         # Generate S3 key and presigned URL using the file ID
         upload_url, s3_key = s3_service.generate_presigned_upload_url(
             file_id=str(file_model.id),
