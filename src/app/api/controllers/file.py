@@ -3,22 +3,27 @@ from litestar.di import Provide
 from litestar.exceptions import NotFoundException, InternalServerException
 from litestar.datastructures import UploadFile
 from litestar.security.jwt import Token
-from app.db.models.file import FileModel
+from app.db.models.file import FileModel, UploadStatus
 from app.api.schemas.file import (
     FileInfo,
     FileUploadResponse,
     FileListResponse,
     FileDownloadResponse,
     FileDeleteResponse,
+    PresignedUploadRequest,
+    PresignedUploadResponse,
+    S3WebhookEvent,
 )
 from app.db.repositories.file import FileRepository, provide_files_repo
 from app.services.s3_service import s3_service
 from app.auth.jwt import AuthUser
 from typing import Annotated, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from litestar.enums import RequestEncodingType
 from litestar.params import Body
 from io import BytesIO
+
+_PRESIGNED_URL_EXPIRY_SECONDS = 60
 
 
 class FileController(Controller):
@@ -33,11 +38,8 @@ class FileController(Controller):
         files_repo: FileRepository,
         data: Annotated[UploadFile, Body(media_type=RequestEncodingType.MULTI_PART)],
     ) -> FileUploadResponse:
-        if not data:
-            raise InternalServerException("No file provided")
-
         user_id = request.user.id
-        
+
         file_content = await data.read()
         file_size = len(file_content)
         file_obj = BytesIO(file_content)
@@ -110,10 +112,21 @@ class FileController(Controller):
         if not file:
             raise NotFoundException("File not found")
 
-        download_url = s3_service.generate_presigned_url(file.s3_key, expires_in=60)
+        try:
+            download_url = s3_service.generate_presigned_url(
+                file.s3_key, expires_in=_PRESIGNED_URL_EXPIRY_SECONDS
+            )
+        except Exception as e:
+            raise InternalServerException(f"Failed to generate download URL: {str(e)}")
+
+        expires_at = datetime.utcnow() + timedelta(
+            seconds=_PRESIGNED_URL_EXPIRY_SECONDS
+        )
 
         return FileDownloadResponse(
-            download_url=download_url, expires_in=60, filename=file.original_filename
+            download_url=download_url,
+            expires_at=expires_at,
+            filename=file.original_filename,
         )
 
     @delete("/{file_id:str}", status_code=200)
@@ -134,3 +147,66 @@ class FileController(Controller):
         return FileDeleteResponse(
             message="File removed from list successfully", deleted_file_id=file_id
         )
+
+    @post("/upload/presigned")
+    async def get_presigned_upload_url(
+        self,
+        request: Request[AuthUser, Token, Any],
+        files_repo: FileRepository,
+        data: PresignedUploadRequest,
+    ) -> PresignedUploadResponse:
+        """Get presigned URL for direct S3 upload (better for large files)"""
+        user_id = request.user.id
+
+        # Pre-create file record with PENDING status
+        file_model = FileModel(
+            filename=data.filename,
+            original_filename=data.filename,
+            content_type=data.content_type,
+            file_size=data.file_size,
+            s3_key="",  # Will be updated after S3 key generation
+            s3_bucket=s3_service.bucket_name,
+            uploaded_by=user_id,
+            upload_date=datetime.utcnow(),
+            upload_status=UploadStatus.PENDING,
+        )
+
+        # Generate S3 key and presigned URL
+        upload_url, s3_key = s3_service.generate_presigned_upload_url(
+            user_id=user_id,
+            original_filename=data.filename,
+            content_type=data.content_type,
+            expires_in=_PRESIGNED_URL_EXPIRY_SECONDS,
+        )
+
+        # Update the file record with the S3 key
+        file_model.s3_key = s3_key
+        await files_repo.add(file_model, auto_commit=True)
+
+        expires_at = datetime.utcnow() + timedelta(
+            seconds=_PRESIGNED_URL_EXPIRY_SECONDS
+        )
+
+        return PresignedUploadResponse(
+            upload_url=upload_url,
+            s3_key=s3_key,
+            expires_at=expires_at,
+            file_id=str(file_model.id),  # Return file ID for webhook
+        )
+
+    @post("/webhook/s3-upload")
+    async def s3_upload_webhook(
+        self,
+        files_repo: FileRepository,
+        events: list[S3WebhookEvent],
+    ) -> dict[str, str]:
+        """Webhook endpoint for S3 upload completion notifications"""
+        for event in events:
+            if event.eventName.startswith("ObjectCreated"):
+                s3_key = event.s3["object"]["key"]
+                # Find and update the file record
+                file_record = await files_repo.get_by_s3_key(s3_key)
+                if file_record:
+                    file_record.upload_status = UploadStatus.COMPLETED
+                    await files_repo.session.commit()
+        return {"status": "processed"}

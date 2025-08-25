@@ -47,6 +47,7 @@ class S3Service:
                 s3_key,
                 ExtraArgs={
                     "ContentType": content_type,
+                    "ContentDisposition": f'attachment; filename="{original_filename}"',
                     "ServerSideEncryption": "AES256",
                 },
             )
@@ -61,12 +62,43 @@ class S3Service:
         try:
             url = self.s3_client.generate_presigned_url(
                 "get_object",
-                Params={"Bucket": self.bucket_name, "Key": s3_key},
+                Params={
+                    "Bucket": self.bucket_name,
+                    "Key": s3_key,
+                    "ResponseContentDisposition": "attachment",
+                },
                 ExpiresIn=expires_in,
             )
             return url
         except ClientError as e:
             raise InternalServerException(f"Failed to generate presigned URL: {str(e)}")
+
+    def generate_presigned_upload_url(
+        self,
+        user_id: str,
+        original_filename: str,
+        content_type: str,
+        expires_in: int = 3600,
+    ) -> tuple[str, str]:
+        """Generate presigned URL for direct S3 upload"""
+        s3_key = self._generate_s3_key(user_id, original_filename)
+
+        try:
+            url = self.s3_client.generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": self.bucket_name,
+                    "Key": s3_key,
+                    "ContentType": content_type,
+                    "ContentDisposition": f'attachment; filename="{original_filename}"',
+                },
+                ExpiresIn=expires_in,
+            )
+            return url, s3_key
+        except ClientError as e:
+            raise InternalServerException(
+                f"Failed to generate presigned upload URL: {str(e)}"
+            )
 
     def delete_file(self, s3_key: str) -> bool:
         try:

@@ -28,10 +28,39 @@ class FileListResponse(BaseModel):
 
 class FileDownloadResponse(BaseModel):
     download_url: str
-    expires_in: int
+    expires_at: datetime
     filename: str
 
 
 class FileDeleteResponse(BaseModel):
     message: str
     deleted_file_id: str
+
+
+class PresignedUploadRequest(BaseModel):
+    filename: str
+    content_type: str
+    file_size: int
+
+
+class PresignedUploadResponse(BaseModel):
+    upload_url: str
+    s3_key: str
+    expires_at: datetime
+    file_id: str
+    fields: dict[str, str] | None = None
+
+
+class UploadConfirmRequest(BaseModel):
+    s3_key: str
+    filename: str
+    content_type: str
+    file_size: int
+
+
+class S3WebhookEvent(BaseModel):
+    """S3 Event Notification webhook payload"""
+
+    eventSource: str
+    eventName: str
+    s3: dict
