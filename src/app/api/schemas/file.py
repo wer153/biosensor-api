@@ -40,7 +40,6 @@ class FileDeleteResponse(BaseModel):
 class PresignedUploadRequest(BaseModel):
     filename: str
     content_type: str
-    file_size: int
 
 
 class PresignedUploadResponse(BaseModel):

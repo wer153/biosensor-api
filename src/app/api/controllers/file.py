@@ -1,12 +1,10 @@
 from litestar import Controller, Request, post, get, delete
 from litestar.di import Provide
-from litestar.exceptions import NotFoundException, InternalServerException
-from litestar.datastructures import UploadFile
+from litestar.exceptions import NotFoundException, InternalServerException, PermissionDeniedException
 from litestar.security.jwt import Token
 from app.db.models.file import FileModel, UploadStatus
 from app.api.schemas.file import (
     FileInfo,
-    FileUploadResponse,
     FileListResponse,
     FileDownloadResponse,
     FileDeleteResponse,
@@ -17,11 +15,8 @@ from app.api.schemas.file import (
 from app.db.repositories.file import FileRepository, provide_files_repo
 from app.services.s3_service import s3_service
 from app.auth.jwt import AuthUser
-from typing import Annotated, Any
+from typing import Any
 from datetime import datetime, timedelta
-from litestar.enums import RequestEncodingType
-from litestar.params import Body
-from io import BytesIO
 
 _PRESIGNED_URL_EXPIRY_SECONDS = 60
 
@@ -31,47 +26,6 @@ class FileController(Controller):
     dependencies = {"files_repo": Provide(provide_files_repo)}
     tags = ["files"]
 
-    @post("/upload")
-    async def upload_files(
-        self,
-        request: Request[AuthUser, Token, Any],
-        files_repo: FileRepository,
-        data: Annotated[UploadFile, Body(media_type=RequestEncodingType.MULTI_PART)],
-    ) -> FileUploadResponse:
-        user_id = request.user.id
-
-        file_content = await data.read()
-        file_size = len(file_content)
-        file_obj = BytesIO(file_content)
-
-        s3_key, s3_bucket = await s3_service.upload_file(
-            file_content=file_obj,
-            user_id=user_id,
-            original_filename=data.filename,
-            content_type=data.content_type or "application/octet-stream",
-        )
-
-        file_model = FileModel(
-            filename=data.filename,
-            original_filename=data.filename,
-            content_type=data.content_type or "application/octet-stream",
-            file_size=file_size,
-            s3_key=s3_key,
-            s3_bucket=s3_bucket,
-            uploaded_by=user_id,
-            upload_date=datetime.utcnow(),
-        )
-
-        await files_repo.add(file_model, auto_commit=True)
-
-        return FileUploadResponse(
-            id=str(file_model.id),
-            filename=file_model.filename,
-            original_filename=file_model.original_filename,
-            content_type=file_model.content_type,
-            file_size=file_model.file_size,
-            message="File uploaded successfully",
-        )
 
     @get("/")
     async def get_files(
@@ -116,8 +70,14 @@ class FileController(Controller):
             download_url = s3_service.generate_presigned_url(
                 file.s3_key, expires_in=_PRESIGNED_URL_EXPIRY_SECONDS
             )
-        except Exception as e:
-            raise InternalServerException(f"Failed to generate download URL: {str(e)}")
+        except InternalServerException as e:
+            error_msg = str(e)
+            if "not found" in error_msg.lower() or "404" in error_msg:
+                raise NotFoundException(f"File not available for download: {file.original_filename}")
+            elif "access denied" in error_msg.lower() or "403" in error_msg:
+                raise PermissionDeniedException(f"Access denied to file: {file.original_filename}")
+            else:
+                raise InternalServerException(f"Download currently unavailable: {file.original_filename}")
 
         expires_at = datetime.utcnow() + timedelta(
             seconds=_PRESIGNED_URL_EXPIRY_SECONDS
@@ -158,12 +118,12 @@ class FileController(Controller):
         """Get presigned URL for direct S3 upload (better for large files)"""
         user_id = request.user.id
 
-        # Pre-create file record with PENDING status
+        # Pre-create file record with PENDING status (file_size will be updated after upload)
         file_model = FileModel(
             filename=data.filename,
             original_filename=data.filename,
             content_type=data.content_type,
-            file_size=data.file_size,
+            file_size=0,  # Will be updated after upload
             s3_key="",  # Will be updated after S3 key generation
             s3_bucket=s3_service.bucket_name,
             uploaded_by=user_id,
@@ -204,9 +164,11 @@ class FileController(Controller):
         for event in events:
             if event.eventName.startswith("ObjectCreated"):
                 s3_key = event.s3["object"]["key"]
+                file_size = event.s3["object"]["size"]
                 # Find and update the file record
                 file_record = await files_repo.get_by_s3_key(s3_key)
                 if file_record:
                     file_record.upload_status = UploadStatus.COMPLETED
+                    file_record.file_size = file_size
                     await files_repo.session.commit()
         return {"status": "processed"}

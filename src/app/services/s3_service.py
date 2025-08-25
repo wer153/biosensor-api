@@ -71,7 +71,6 @@ class S3Service:
                 Params={
                     "Bucket": self.bucket_name,
                     "Key": s3_key,
-                    "ResponseContentDisposition": "attachment",
                 },
                 ExpiresIn=expires_in,
             )
