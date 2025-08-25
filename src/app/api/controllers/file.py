@@ -194,7 +194,7 @@ class FileController(Controller):
             file_id=str(file_model.id),  # Return file ID for webhook
         )
 
-    @post("/webhook/s3-upload")
+    @post("/webhook/s3-upload", exclude_from_auth=True)
     async def s3_upload_webhook(
         self,
         files_repo: FileRepository,
